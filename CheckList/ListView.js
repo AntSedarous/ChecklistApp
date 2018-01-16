@@ -17,7 +17,8 @@ import {
   Image,
   FlatList,
   TouchableHighlight,
-  ScrollView
+  ScrollView,
+  AsyncStorage,
 } from 'react-native';
 
 
@@ -25,20 +26,33 @@ import {
 class MyListItem extends React.Component<{}> {
   constructor(props) {
     super(props);
+    const txtStart = '' || this.props.textInput
     this.state = {
-      text: '',
+      text: txtStart,
       id: this.props.id,
       key: this.props.id
     }
   };
 
 
+  _accessText = () => {
+    return this.props.onRef(this.state.text, this.props.id);
+  };
+
+
   _onTextChange = (event) => {
-    this.setState({text: event.nativeEvent.text});
+
+    this.setState({
+            text: event.nativeEvent.text
+        }, () => {
+            this._accessText();
+        });
+
 
   }
   render() {
     let pHolder = 'Choose an Item';
+
     return (
       <View style={styles.rowContainer}>
         <TextInput
@@ -63,18 +77,72 @@ class MyListItem extends React.Component<{}> {
 
 
 export default class ListViewer extends React.Component<{}> {
+
   constructor(props) {
     super(props);
     this.state = {
       searchString: 'london',
       selected: false,
       message: '',
-      initItems: [<MyListItem id='item1'/>],
+      initItems: [<MyListItem id='item1' onRef={this.onRefFunc}/>],
       itemNumber: 1
     };
     this.renderRow = this.renderRow.bind(this);
     this._deleteRow=this._deleteRow.bind(this);
-  };
+    this.componentDidMount = this.componentDidMount.bind(this);
+    this.loadData();
+}
+
+onRefFunc = (text, id) => {
+        let newState = this.state;
+        newState[id]=text;
+        //this.setState(newState, () => {this.saveData()});
+        this.setState(newState);
+    }
+
+componentDidMount = () => {
+  //this.loadData();
+
+
+}
+
+async loadData() {
+try{
+    const item1 = await AsyncStorage.getItem('initItemsTextSave');
+    const item2 = await AsyncStorage.getItem('initItemsIdSave');
+    const item3 = await AsyncStorage.getItem('initItemsNumberSave');
+    let newState = this.state;
+    const new1 = JSON.parse(item1);
+    const new2 = JSON.parse(item2);
+    const new3 = parseInt(item3);
+    let arr = [];
+    for (i=0; i<new1.length; i++ ) {
+      arr.push(<MyListItem id={new2[i]} textInput={new1[i]} onRef={this.onRefFunc} />);
+      newState[new2[i]] = new1[i];
+
+    }
+    /*if (new1[(new1.length) != '']) {
+      arr.push(<MyListItem id={(new3+1)} onRef={this.onRefFunc} />);
+    }*/
+    newState['itemNumber'] = new3+1;
+    newState['initItems'] = arr;
+    this.setState(newState);
+  } catch(error) {
+    console.log('No Data');
+  }
+    //let itemList = item2.map((txtItem, index) => <MyListItem id={txtItem} textInput={item1[index]} />);
+  /*this.setState({initItems: itemList,
+                itemNumber: item3});*/
+
+}
+
+  async saveData() {
+      await AsyncStorage.setItem('initItemsTextSave', JSON.stringify(this.state.initItems.map(item => this.state[item.props.id])));
+      //console.log(this.state.initItems.map(item => item.props.onRefFunc)); //.map(item => item._accessText));
+      await AsyncStorage.setItem('initItemsIdSave', JSON.stringify(this.state.initItems.filter(item => this.state[item.props.id] != '').map(item => item.props.id)));
+      await AsyncStorage.setItem('initItemsNumberSave', String(this.state.itemNumber));
+
+   }
 
 
 
@@ -84,6 +152,7 @@ export default class ListViewer extends React.Component<{}> {
       let newItems = this.state.initItems;
       newItems.splice(index, 1);
       this.setState({initItems: newItems});
+      //this.saveData();
   }
 
   }
@@ -104,15 +173,22 @@ return (<Swipeout right={swipeBtns}>
 };
 
 _clickHandler = ()=> {
+  console.log("Click");
   let itemList = this.state.initItems.slice()
   let itemNo = this.state.itemNumber+1
-  itemList.push(<MyListItem id={'item'+itemNo}/>);
+  itemList.push(<MyListItem id={'item'+itemNo}  onRef={this.onRefFunc}/>);
 
   this.setState({initItems: itemList,
   itemNumber: itemNo});
+  //this.saveData();
+
 }
 
+
+
+
   render() {
+    this.saveData();
     return(
       <View style={styles.container}>
       <FlatList
